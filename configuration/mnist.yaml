@@ -1,0 +1,13 @@
+dataset:
+  channels: 1
+  download: False
+  img_size: 64
+diffusion:
+  timesteps: 1000
+model:
+  dim: 64
+  lr: 1.0e-3
+training:
+  batch_size: 32
+  device: "mps"
+  epochs: 100

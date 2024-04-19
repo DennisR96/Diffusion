@@ -1,8 +1,9 @@
 dataset:
-    img_size: 64
+  channels: 3
+  img_size: 64
 
 diffusion:
-    timestemps: 
+  timestemps:
 training:
-    device: "mps"
-    learning_rate: 1-e03 
+  device: "mps"
+  learning_rate: 1.0e-3

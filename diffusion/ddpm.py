@@ -120,7 +120,7 @@ class DDPM():
         
         for i in tqdm(reversed(range(0, self.timesteps)), desc='sampling loop time step', total=self.timesteps):
             img = self.p_sample(model, img, torch.full((b,), i, device=device, dtype=torch.long), i)
-            imgs.append(img.cpu().numpy())
+            imgs.append(img.cpu())
         return imgs
 
     @torch.no_grad()

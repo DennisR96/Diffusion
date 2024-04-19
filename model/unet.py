@@ -116,20 +116,20 @@ class PreNorm(nn.Module):
 class Unet(nn.Module):
     def __init__(
         self,
+        config,
         dim,
         init_dim=None,
         out_dim=None,
         dim_mults=(1, 2, 4, 8),
-        channels=3,
         self_condition=False,
         resnet_block_groups=4,
     ):
         super().__init__()
 
         # determine dimensions
-        self.channels = channels
+        self.channels = config.dataset.channels
         self.self_condition = self_condition
-        input_channels = channels * (2 if self_condition else 1)
+        input_channels = self.channels * (2 if self_condition else 1)
 
         init_dim = default(init_dim, dim)
         self.init_conv = nn.Conv2d(input_channels, init_dim, 1, padding=0) # changed to 1 and 0 from 7,3
@@ -191,7 +191,7 @@ class Unet(nn.Module):
                 )
             )
 
-        self.out_dim = default(out_dim, channels)
+        self.out_dim = default(out_dim, self.channels)
 
         self.final_res_block = block_klass(dim * 2, dim, time_emb_dim=time_dim)
         self.final_conv = nn.Conv2d(dim, self.out_dim, 1)
