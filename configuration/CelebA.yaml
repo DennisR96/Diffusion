@@ -1,0 +1,8 @@
+dataset:
+    img_size: 64
+
+diffusion:
+    timestemps: 
+training:
+    device: "mps"
+    learning_rate: 1-e03 
