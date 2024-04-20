@@ -37,6 +37,7 @@ class DDPM():
         self.device = device
 
         # Beta Schedule
+        self.betas = torch.linspace(0.0001, 0.02, self.timesteps)
         self.betas = linear_beta_schedule(timesteps=self.timesteps)
 
         # Alphas

@@ -2,6 +2,7 @@ dataset:
   channels: 1
   download: False
   img_size: 64
+  name: "MNIST"
 diffusion:
   timesteps: 1000
 model:

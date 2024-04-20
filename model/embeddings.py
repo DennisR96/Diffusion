@@ -7,6 +7,12 @@ class SinusoidalPositionEmbeddings(torch.nn.Module):
         self.dim = dim
 
     def forward(self, time):
+        '''
+        Creates Sinusoidal Position Embeddings based
+        on time
+        '''
+        
+        # Extract the Device
         device = time.device                
         half_dim = self.dim // 2
         embeddings = math.log(10000) / (half_dim - 1)
