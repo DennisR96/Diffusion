@@ -10,42 +10,110 @@ from .attention import Attention, LinearAttention
 from .helpers import exists, default, num_to_groups
 
 class Residual(nn.Module):
+    '''
+    Residual Block for neural networks, particularly useful in deep networks to avoid
+    the vanishing gradient problem by adding the input x directly to the output of
+    a functional transformation of x.
+    https://upload.wikimedia.org/wikipedia/commons/thumb/b/ba/ResBlock.png/1200px-ResBlock.png 
+    '''
+
     def __init__(self, fn):
-        super().__init__()
-        self.fn = fn
+        '''
+        Initializes the Residual block with a given function or neural network module (fn).
+
+        Args:
+        fn (callable): The operation to apply to the input, e.g., a combination of convolution,
+                       normalization, and activation functions.
+        '''
+        super().__init__()  # Initialize the base nn.Module class
+        self.fn = fn        # Assign the function to a class variable
 
     def forward(self, x, *args, **kwargs):
-        return self.fn(x, *args, **kwargs) + x
+        '''
+        Processes the input through the function 'fn' and adds the input x to the output of fn.
+
+        Args:
+        x (Tensor): The input tensor.
+        *args, **kwargs: Additional parameters for the function 'fn'.
+
+        Returns:
+        Tensor: The output tensor after adding x to the transformed x by 'fn'.
+        '''
+        return self.fn(x, *args, **kwargs) + x 
 
 
 def Upsample(dim, dim_out=None):
+    '''
+    Creates an upsampling module that doubles the resolution of input feature maps using nearest neighbor 
+    interpolation followed by a convolutional layer to potentially adjust the number of output channels.
+
+    Args:
+    dim (int): The number of input channels.
+    dim_out (int, optional): The number of output channels. Defaults to the same as input channels if not provided.
+
+    Returns:
+    nn.Sequential: A sequential container of an Upsample layer and a Conv2d layer.
+    '''
     return nn.Sequential(
-        nn.Upsample(scale_factor=2, mode="nearest"),
-        nn.Conv2d(dim, default(dim_out, dim), 3, padding=1),
+        # Upsample the input by a factor of 2 using nearest neighbor interpolation
+        nn.Upsample(scale_factor=2, mode="nearest"),  
+        
+        # Apply a 2D convolution with specified in/out channels and a kernel size of 3x3 with padding set to 1.
+        nn.Conv2d(dim, default(dim_out, dim), 3, padding=1),  
     )
 
 
 def Downsample(dim, dim_out=None):
-    # No More Strided Convolutions or Pooling
+    '''
+    Creates a downsampling module that reduces the spatial dimensions of input feature maps by a factor of 2
+    using a combination of rearrangement and convolution. This module effectively reduces the height and width
+    while increasing the number of channels, optionally adjusting the number of output channels.
+
+    Args:
+    dim (int): The number of input channels.
+    dim_out (int, optional): The number of output channels. If not provided, it defaults to the same as input channels.
+
+    Returns:
+    nn.Sequential: A sequential container of a Rearrange layer for downsampling and a Conv2d layer for channel adjustment.
+    '''
     return nn.Sequential(
-        Rearrange("b c (h p1) (w p2) -> b (c p1 p2) h w", p1=2, p2=2),
-        nn.Conv2d(dim * 4, default(dim_out, dim), 1),
+        # Rearrange input tensor to downsample spatial dimensions and increase channel dimensions,
+        Rearrange("b c (h p1) (w p2) -> b (c p1 p2) h w", p1=2, p2=2), 
+        
+        # Convolution Layer to adjust the channel count to the desired output dimension.
+        nn.Conv2d(dim * 4, default(dim_out, dim), 1)  # Convolutional layer to optionally adjust channel dimensions
     )
 
 class WeightStandardizedConv2d(nn.Conv2d):
     """
-    https://arxiv.org/abs/1903.10520
-    weight standardization purportedly works synergistically with group normalization
+    A convolutional layer that implements Weight Standardization to improve training stability with Group Normalization.
+    Weight Standardization standardizes the weights of the convolutional filters to have zero mean and unit variance,
+    as suggested by the paper at https://arxiv.org/abs/1903.10520. This technique is beneficial when used alongside
+    Group Normalization.
     """
 
     def forward(self, x):
+        '''
+        Overrides the forward pass to apply weight standardization to the weights before performing the convolution.
+
+        Args:
+        x (Tensor): Input tensor to the convolutional layer.
+
+        Returns:
+        Tensor: The output tensor after applying the convolution with standardized weights.
+        '''
+        # Set a small epsilon for numerical stability depending on the dtype of the input
         eps = 1e-5 if x.dtype == torch.float32 else 1e-3
 
+        # Calculate mean and variance of the weights
         weight = self.weight
         mean = reduce(weight, "o ... -> o 1 1 1", "mean")
         var = reduce(weight, "o ... -> o 1 1 1", partial(torch.var, unbiased=False))
+
+        # Standardize weights
         normalized_weight = (weight - mean) / (var + eps).rsqrt()
 
+        # Perform convolution with standardized weights
         return F.conv2d(
             x,
             normalized_weight,
@@ -53,26 +121,52 @@ class WeightStandardizedConv2d(nn.Conv2d):
             self.stride,
             self.padding,
             self.dilation,
-            self.groups,
+            self.groups
         )
 
-
 class Block(nn.Module):
+    """
+    A neural network block that combines a weight-standardized convolution, group normalization,
+    and SiLU activation. Optionally applies a learnable scaling and shifting to the normalized output.
+    This combination is commonly used in modern neural architectures for effective feature extraction and training stability.
+    """
+
     def __init__(self, dim, dim_out, groups=8):
+        '''
+        Initializes the block with convolution, normalization, and activation layers.
+
+        Args:
+        dim (int): Number of input channels.
+        dim_out (int): Number of output channels.
+        groups (int, optional): Number of groups for group normalization. Defaults to 8.
+        '''
         super().__init__()
-        self.proj = WeightStandardizedConv2d(dim, dim_out, 3, padding=1)
-        self.norm = nn.GroupNorm(groups, dim_out)
-        self.act = nn.SiLU()
+        self.proj = WeightStandardizedConv2d(dim, dim_out, 3, padding=1)  # Convolution layer with weight standardization
+        self.norm = nn.GroupNorm(groups, dim_out)  # Group normalization layer
+        self.act = nn.SiLU()  # SiLU activation function, also known as Swish
 
     def forward(self, x, scale_shift=None):
-        x = self.proj(x)
-        x = self.norm(x)
+        '''
+        Processes the input through the block, applying convolution, normalization, and optionally,
+        a scale and shift transformation before the activation.
 
+        Args:
+        x (Tensor): The input tensor.
+        scale_shift (tuple of Tensors, optional): A tuple containing scaling and shifting tensors. If provided,
+                                                  these are used to modify the normalized output before activation.
+
+        Returns:
+        Tensor: The output tensor after processing through the block.
+        '''
+        x = self.proj(x)  # Apply weight-standardized convolution
+        x = self.norm(x)  # Apply group normalization
+
+        # If a scale and shift are provided, apply them
         if exists(scale_shift):
             scale, shift = scale_shift
-            x = x * (scale + 1) + shift
+            x = x * (scale + 1) + shift  # Apply learned scaling and shifting
 
-        x = self.act(x)
+        x = self.act(x)  # Apply SiLU activation
         return x
 
 
@@ -103,7 +197,17 @@ class ResnetBlock(nn.Module):
         return h + self.res_conv(x)
 
 class PreNorm(nn.Module):
+    '''
+    Applies layer normalization (specifically, Group Normalization with a group size of 1) 
+    before passing the input tensor through a given function
+    '''
     def __init__(self, dim, fn):
+        '''
+        
+        Args:
+        dim (int)       
+        fn
+        '''
         super().__init__()
         self.fn = fn
         self.norm = nn.GroupNorm(1, dim)
@@ -126,9 +230,11 @@ class Unet(nn.Module):
     ):
         super().__init__()
 
-        # determine dimensions
-        self.channels = config.dataset.channels
-        self.self_condition = self_condition
+        self.channels = config.dataset.channels         # Image Channels
+        self.self_condition = self_condition            # Condition
+        
+        
+        # Double Input Channels if Conditional
         input_channels = self.channels * (2 if self_condition else 1)
 
         init_dim = default(init_dim, dim)

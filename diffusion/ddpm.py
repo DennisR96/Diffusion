@@ -2,45 +2,15 @@
 import torch
 from tqdm.auto import tqdm
 
-
-# Noise Schedules
-def cosine_beta_schedule(timesteps, s=0.008):
-    """
-    cosine schedule as proposed in https://arxiv.org/abs/2102.09672
-    """
-    steps = timesteps + 1
-    x = torch.linspace(0, timesteps, steps)
-    alphas_cumprod = torch.cos(((x / timesteps) + s) / (1 + s) * torch.pi * 0.5) ** 2
-    alphas_cumprod = alphas_cumprod / alphas_cumprod[0]
-    betas = 1 - (alphas_cumprod[1:] / alphas_cumprod[:-1])
-    return torch.clip(betas, 0.0001, 0.9999)
-
-def linear_beta_schedule(timesteps):
-    beta_start = 0.0001
-    beta_end = 0.02
-    return torch.linspace(beta_start, beta_end, timesteps)
-
-def quadratic_beta_schedule(timesteps):
-    beta_start = 0.0001
-    beta_end = 0.02
-    return torch.linspace(beta_start**0.5, beta_end**0.5, timesteps) ** 2
-
-def sigmoid_beta_schedule(timesteps):
-    beta_start = 0.0001
-    beta_end = 0.02
-    betas = torch.linspace(-6, 6, timesteps)
-    return torch.sigmoid(betas) * (beta_end - beta_start) + beta_start
-
 class DDPM():
     def __init__(self, timesteps, device) -> None:
         self.timesteps = timesteps
         self.device = device
 
-        # Beta Schedule
+        # Create Linear Beta Schedule
         self.betas = torch.linspace(0.0001, 0.02, self.timesteps)
-        self.betas = linear_beta_schedule(timesteps=self.timesteps)
 
-        # Alphas
+        # Calculate Alphas
         self.alphas = 1. - self.betas
         self.alphas_cumprod = torch.cumprod(self.alphas, axis=0)
         self.alphas_cumprod_prev = torch.nn.functional.pad(self.alphas_cumprod[:-1], (1, 0), value=1.0)
@@ -58,37 +28,38 @@ class DDPM():
         out = a.gather(-1, t.cpu())
         return out.reshape(batch_size, *((1,) * (len(x_shape) - 1))).to(self.device)
     
-    # forward diffusion
+    # Forward Diffusion
     def q_sample(self, x_start, t, noise=None):
+        
+        # If noise=None -> Generate random noise with the same shape as the input x_start
         if noise is None:
             noise = torch.randn_like(x_start)
 
+        # Extract Alphas a
         self.sqrt_alphas_cumprod_t = self.extract(self.sqrt_alphas_cumprod, t, x_start.shape)
+        
+        # Extract Alpha (1 - a)
         self.sqrt_one_minus_alphas_cumprod_t = self.extract(
             self.sqrt_one_minus_alphas_cumprod, t, x_start.shape
         )
-
-        return self.sqrt_alphas_cumprod_t * x_start + self.sqrt_one_minus_alphas_cumprod_t * noise
+        
+        # Compute the Noisy Sample
+        x_Noisy = self.sqrt_alphas_cumprod_t * x_start + self.sqrt_one_minus_alphas_cumprod_t * noise
+        return x_Noisy
     
-    def p_losses(self, denoise_model, x_start, t, noise=None, loss_type="l1"):
+    def p_losses(self, denoise_model, x_start, t, noise=None):
+        #
         if noise is None:
             noise = torch.randn_like(x_start)
 
         x_noisy = self.q_sample(x_start=x_start, t=t, noise=noise)
         predicted_noise = denoise_model(x_noisy, t)
-
-        if loss_type == 'l1':
-            loss = torch.nn.functional.l1_loss(noise, predicted_noise)
-        elif loss_type == 'l2':
-            loss = torch.nn.functional.mse_loss(noise, predicted_noise)
-        elif loss_type == "huber":
-            loss = torch.nn.functional.smooth_l1_loss(noise, predicted_noise)
-        else:
-            raise NotImplementedError()
+        loss = torch.nn.functional.l1_loss(noise, predicted_noise)
         return loss
     
     @torch.no_grad()
     def p_sample(self, model, x, t, t_index):
+        # Extract Betas and Alphas
         self.betas_t = self.extract(self.betas, t, x.shape)
         self.sqrt_one_minus_alphas_cumprod_t = self.extract(
             self.sqrt_one_minus_alphas_cumprod, t, x.shape
