@@ -1,1 +1,2 @@
-What are Generative Models? 
+# Diffusion Library
+Research Library containing multiple Diffusion Algorithms and Models
