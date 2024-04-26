@@ -1,15 +1,15 @@
+'''
+Noise Conditional Score Based Algorithms
+https://github.com/ermongroup/ncsn/ 
+'''
+
+# Imports
 import torch
 import tqdm
 import numpy as np
 
-'''
-Noise Conditional Score Based Algorithms
-https://github.com/ermongroup/ncsn/ 
 
-sigmas          sigmas = torch.tensor(np.exp(np.linspace(np.log(self.config.model.sigma_begin), np.log(self.config.model.sigma_end),
-                               self.config.model.num_classes))).float().to(self.config.device)
-'''
-
+# Functions
 def anneal_dsm_score_estimation(scorenet, samples, labels, sigmas, anneal_power=2.):
     '''
     Function: 

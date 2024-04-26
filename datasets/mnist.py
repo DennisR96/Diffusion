@@ -21,14 +21,15 @@ class MNIST(torch.utils.data.Dataset):
         # Define transformations: resize, convert to tensor, normalize to range [-1, 1]
         self.transform = torchvision.transforms.Compose([
             torchvision.transforms.Resize(config.dataset.img_size),                  # Resize images to specified size
+            torchvision.transforms.RandomHorizontalFlip(),
             torchvision.transforms.ToTensor(),                                       # Convert image to tensor
             torchvision.transforms.Lambda(lambda t: (t * 2) - 1),                    # Normalize tensors to [-1, 1]
         ])
         
         # Load the MNIST dataset from local files if available, or download it otherwise
         self.dataset = torchvision.datasets.MNIST(
-            root='./dataset/mnist',                                                   # Set the root directory for the dataset
-            train=False,                                                              # Use the test split of the dataset
+            root='./datasets/mnist',                                                   # Set the root directory for the dataset
+            train=True,                                                              # Use the test split of the dataset
             download=config.dataset.download,                                         # Flag to download the dataset if not locally available
             transform=None)                                                           # Apply no initial transformations (transformations are applied on-the-fly in __getitem__)
 

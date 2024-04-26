@@ -1,9 +1,14 @@
 dataset:
   channels: 3
-  img_size: 64
-
+  img_size: 32
+  img_dir: "datasets/img_align_celeba"
+  name: "CelebA"
 diffusion:
-  timestemps:
+  timesteps: 1000
+model:
+  dim: 64
+  lr: 0.001
 training:
+  batch_size: 128
   device: "mps"
-  learning_rate: 1.0e-3
+  epochs: 100

@@ -1,8 +1,18 @@
+from diffusion import ddpm
 import torch
-import numpy as np
 
-z = torch.rand(24, 1, 28, 28, device="mps")
+N = 32
+device = "mps"
+timesteps = 1000
 
-sigmas = np.exp(np.linspace(np.log(0.1), np.log(0.999),
-                                    10))
-print(sigmas)
+
+# Create a torch.Tensor of [N] with Random Timesteps
+t = torch.randint(0, timesteps, (N,), device=device).long()
+
+# Load Diffusion Model
+diffusion = ddpm.DDPM(t, "mps")
+
+# Load an Image Batch
+
+
+print()

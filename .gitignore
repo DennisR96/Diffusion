@@ -1,4 +1,4 @@
 .DS_Store
-datasets/img_align_celeba
-datasets/mnist
+datasets/img_align_celeba/
+datasets/mnist/
 results
