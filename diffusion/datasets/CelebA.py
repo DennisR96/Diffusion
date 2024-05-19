@@ -11,11 +11,10 @@ class CelebA(torch.utils.data.Dataset):
         self.img_dir = config.dataset.img_dir
         self.img_files = os.listdir(self.img_dir)
         self.img_filepaths = [os.path.join(self.img_dir, filename) for filename in self.img_files if filename.lower().endswith('.jpg')]
-
-
-        # Transformation
+        
+    def transform(self):
         self.transform = torchvision.transforms.Compose([
-            torchvision.transforms.Resize((config.dataset.img_size, config.dataset.img_size)),
+            torchvision.transforms.Resize((self.config.dataset.img_size, self.config.dataset.img_size)),
             torchvision.transforms.ToTensor(),
             torchvision.transforms.Lambda(lambda t: (t * 2) - 1),
         ])
