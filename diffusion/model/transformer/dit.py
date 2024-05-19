@@ -6,7 +6,7 @@ from timm.models.vision_transformer import PatchEmbed, Attention, Mlp
 
 
 def modulate(x, shift, scale):
-    '''
+    """
     Function: Apply a modulation transformation to an input tensor
     
     Args:
@@ -17,21 +17,21 @@ def modulate(x, shift, scale):
     Returns:
     (torch.Tensor)              Shifted and Scaled Input
     
-    '''
+    """
     return x * (1 + scale.unsqueeze(1)) + shift.unsqueeze(1)
 
 class TimestepEmbedder(nn.Module):
-    '''
+    """
     Class: Sinusoidal Timestep Embeddings
-    '''
+    """
     def __init__(self, hidden_size, frequency_embedding_size=256):
-        '''
-        Function: Initialize Sinusoidal Timestep Embeddings
+        """
+        Initialize Sinusoidal Timestep Embeddings
         
         Args:
         hidden_size (int)                       Hidden Layer Size Dimension
         frequency_embedding_size (int)          Frequency Embedding Dimensionality
-        '''
+        """
         super().__init__()
         
         # Multi-Layer Perceptron (MLP) || Linear --> SiLU --> Linear
@@ -46,8 +46,8 @@ class TimestepEmbedder(nn.Module):
 
     @staticmethod
     def timestep_embedding(t, dim, max_period=10000):
-        '''
-        Function: Create Sinusoidal Timestep Embeddings
+        """
+        Create Sinusoidal Timestep Embeddings
         
         Arguments:
         t (torch.Tensor)                Tensor of N indices, one per batch element
@@ -56,7 +56,7 @@ class TimestepEmbedder(nn.Module):
         
         Returns:
         embedding(torch.Tensor)         Tensor [N, D] of Positional Embeddings
-        '''
+        """
         
         # Calculate Half Dimension for sin() and cos()
         half = dim // 2
@@ -228,7 +228,7 @@ class FinalLayer(nn.Module):
 
 class DiT(nn.Module):
     """
-    Diffusion model with a Transformer backbone.
+    Diffusion Model with Transformer Backbone
     """
     def __init__(
         self,
@@ -243,6 +243,21 @@ class DiT(nn.Module):
         num_classes=1000,
         learn_sigma=True,
     ):
+        """
+        Diffusion Transformer Initializiation
+
+        Args:
+            input_size (int, optional): _description_. Defaults to 32.
+            patch_size (int, optional): _description_. Defaults to 2.
+            in_channels (int, optional): _description_. Defaults to 4.
+            hidden_size (int, optional): _description_. Defaults to 1152.
+            depth (int, optional): _description_. Defaults to 28.
+            num_heads (int, optional): _description_. Defaults to 16.
+            mlp_ratio (float, optional): _description_. Defaults to 4.0.
+            class_dropout_prob (float, optional): _description_. Defaults to 0.1.
+            num_classes (int, optional): _description_. Defaults to 1000.
+            learn_sigma (bool, optional): _description_. Defaults to True.
+        """
         super().__init__()
         self.learn_sigma = learn_sigma
         self.in_channels = in_channels
@@ -316,39 +331,35 @@ class DiT(nn.Module):
 
     def forward(self, x, t):
         """
-        Forward pass of DiT.
-        x: (N, C, H, W) tensor of spatial inputs (images or latent representations of images)
-        t: (N,) tensor of diffusion timesteps
-        y: (N,) tensor of class labels
+        DiT Forward Pass
+        
+        Args:
+            x (torch.Tensor)        Tensor [N, C, H, W] of spatial inputs (images or latent representations)
+            t (torch.Tensor)        Tensor [N] of Diffusion Timesteps
+            y (torch.Tensor)        Tensor of Class Labels
         """
-        y = torch.empty(x.shape[0], dtype=torch.int64).to("mps")  # dtype=torch.int64 is typically used for class labels
-        x = self.x_embedder(x) + self.pos_embed  # (N, T, D), where T = H * W / patch_size ** 2
-        t = self.t_embedder(t)                   # (N, D)
-        y = self.y_embedder(y, self.training)    # (N, D)
-        c = t + y                                # (N, D)
+        
+        # Create Empty Class Labels
+        y = torch.empty(x.shape[0], dtype=torch.int64).to("mps")  
+        
+        # Embeddings
+        x = self.x_embedder(x) + self.pos_embed     # (N, T, D), where T = H * W / patch_size ** 2
+        t = self.t_embedder(t)                      # (N, D)
+        y = self.y_embedder(y, self.training)       # (N, D)
+        
+        # Create Conditional Vector
+        c = t + y                                   # (N, D)
+        
+        # Transformer Blocks
         for block in self.blocks:
-            x = block(x, c)                      # (N, T, D)
-        x = self.final_layer(x, c)                # (N, T, patch_size ** 2 * out_channels)
-        x = self.unpatchify(x)                   # (N, out_channels, H, W)
+            x = block(x, c)                         # (N, T, D)
+        
+        # Final Layers
+        x = self.final_layer(x, c)                  # (N, T, patch_size ** 2 * out_channels)
+        
+        # Unpatchify
+        x = self.unpatchify(x)                      # (N, out_channels, H, W)
         return x
-
-    def forward_with_cfg(self, x, t, y, cfg_scale):
-        """
-        Forward pass of DiT, but also batches the unconditional forward pass for classifier-free guidance.
-        """
-        # https://github.com/openai/glide-text2im/blob/main/notebooks/text2im.ipynb
-        half = x[: len(x) // 2]
-        combined = torch.cat([half, half], dim=0)
-        model_out = self.forward(combined, t, y)
-        # For exact reproducibility reasons, we apply classifier-free guidance on only
-        # three channels by default. The standard approach to cfg applies it to all channels.
-        # This can be done by uncommenting the following line and commenting-out the line following that.
-        # eps, rest = model_out[:, :self.in_channels], model_out[:, self.in_channels:]
-        eps, rest = model_out[:, :3], model_out[:, 3:]
-        cond_eps, uncond_eps = torch.split(eps, len(eps) // 2, dim=0)
-        half_eps = uncond_eps + cfg_scale * (cond_eps - uncond_eps)
-        eps = torch.cat([half_eps, half_eps], dim=0)
-        return torch.cat([eps, rest], dim=1)
 
 
 #################################################################################

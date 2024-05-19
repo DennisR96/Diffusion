@@ -3,11 +3,16 @@ import torch
 from tqdm.auto import tqdm
 
 class DDPM():
-    """
-    Class: Denoising Diffusion Probabilistic Model
-    
-    """
+
     def __init__(self, timesteps, device) -> None:
+        """
+        Initialize Class
+
+        Args:
+            timesteps (_type_): _description_
+            device (_type_): _description_
+        """ 
+        
         self.timesteps = timesteps
         self.device = device
 
@@ -19,12 +24,8 @@ class DDPM():
         self.alphas_cumprod = torch.cumprod(self.alphas, axis=0)
         self.alphas_cumprod_prev = torch.nn.functional.pad(self.alphas_cumprod[:-1], (1, 0), value=1.0)
         self.sqrt_recip_alphas = torch.sqrt(1.0 / self.alphas)
-
-        # Calculations for diffusion q(x_t | x_{t-1}) and others
         self.sqrt_alphas_cumprod = torch.sqrt(self.alphas_cumprod)
         self.sqrt_one_minus_alphas_cumprod = torch.sqrt(1. - self.alphas_cumprod)
-
-        # Calculations for posterior q(x_{t-1} | x_t, x_0)
         self.posterior_variance = self.betas * (1. - self.alphas_cumprod_prev) / (1. - self.alphas_cumprod)
 
     def extract(self, a, t, x_shape):
@@ -70,11 +71,11 @@ class DDPM():
         if noise is None:
             noise = torch.randn_like(x_start)
 
-        # Extract Alphas & Alphas Cumprod
+        # Extract Alphas
         self.sqrt_alphas_cumprod_t = self.extract(self.sqrt_alphas_cumprod, t, x_start.shape)
         self.sqrt_one_minus_alphas_cumprod_t = self.extract(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape)
         
-        # Compute Noisy Samples:    sqrt(a_hat) * x_0 + sqrt(1 - a_hat) * eps         
+        # x_t = sqrt(alphas_cumprod) * x_0 + sqrt(alphas_cumprod * eps)        
         x_Noisy = self.sqrt_alphas_cumprod_t * x_start + self.sqrt_one_minus_alphas_cumprod_t * noise
         return x_Noisy
     

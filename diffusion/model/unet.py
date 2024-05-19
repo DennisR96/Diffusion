@@ -9,51 +9,58 @@ from .embeddings import SinusoidalPositionEmbeddings
 from .attention import Attention, LinearAttention 
 from .helpers import exists, default, num_to_groups
 
+
+
+from torch import nn, einsum
+
+# Residual Block
 class Residual(nn.Module):
-    '''
+    """
     Residual Block for neural networks, particularly useful in deep networks to avoid
     the vanishing gradient problem by adding the input x directly to the output of
     a functional transformation of x.
-    https://upload.wikimedia.org/wikipedia/commons/thumb/b/ba/ResBlock.png/1200px-ResBlock.png 
-    '''
-
+    """
     def __init__(self, fn):
-        '''
+        """ 
         Initializes the Residual block with a given function or neural network module (fn).
 
         Args:
-        fn (callable): The operation to apply to the input, e.g., a combination of convolution,
-                       normalization, and activation functions.
-        '''
-        super().__init__()  # Initialize the base nn.Module class
-        self.fn = fn        # Assign the function to a class variable
+            fn (function):      Operation to apply to the input
+                                (e.g., a combination of convolution, normalization, and activation functions.)
+        """
+        # Initialize the base nn.Module class
+        super().__init__()  
+        
+        # Assign the function to a class variable
+        self.fn = fn        
 
     def forward(self, x, *args, **kwargs):
-        '''
+        """ 
         Processes the input through the function 'fn' and adds the input x to the output of fn.
 
         Args:
-        x (Tensor): The input tensor.
-        *args, **kwargs: Additional parameters for the function 'fn'.
+            x (torch.Tensor):           Input Tensor
 
         Returns:
-        Tensor: The output tensor after adding x to the transformed x by 'fn'.
-        '''
+            (torch.tensor):               Output tensor after adding x to the transformed x by 'fn'.
+        """
         return self.fn(x, *args, **kwargs) + x 
 
-
+# Up- and Downsampling Blocks
 def Upsample(dim, dim_out=None):
-    '''
-    Creates an upsampling module that doubles the resolution of input feature maps using nearest neighbor 
-    interpolation followed by a convolutional layer to potentially adjust the number of output channels.
+    """
+    Upsampling module that doubles the resolution of input feature 
+    maps using nearest neighbor interpolation followed by a convolutional 
+    layer to potentially adjust the number of output channels.
 
     Args:
-    dim (int): The number of input channels.
-    dim_out (int, optional): The number of output channels. Defaults to the same as input channels if not provided.
+        dim (int):                  The number of input channels.
+        dim_out (int, optional):    The number of output channels. 
+                                    Defaults to the same as input channels if not provided.
 
     Returns:
-    nn.Sequential: A sequential container of an Upsample layer and a Conv2d layer.
-    '''
+        nn.Sequential:              A sequential container of an Upsample layer and a Conv2d layer.
+    """
     return nn.Sequential(
         # Upsample the input by a factor of 2 using nearest neighbor interpolation
         nn.Upsample(scale_factor=2, mode="nearest"),  
@@ -62,20 +69,19 @@ def Upsample(dim, dim_out=None):
         nn.Conv2d(dim, default(dim_out, dim), 3, padding=1),  
     )
 
-
 def Downsample(dim, dim_out=None):
-    '''
-    Creates a downsampling module that reduces the spatial dimensions of input feature maps by a factor of 2
+    """
+    Downsampling module that reduces the spatial dimensions of input feature maps by a factor of 2
     using a combination of rearrangement and convolution. This module effectively reduces the height and width
     while increasing the number of channels, optionally adjusting the number of output channels.
 
     Args:
-    dim (int): The number of input channels.
-    dim_out (int, optional): The number of output channels. If not provided, it defaults to the same as input channels.
+        dim (int): The number of input channels.
+        dim_out (int, optional): The number of output channels. If not provided, it defaults to the same as input channels.
 
     Returns:
-    nn.Sequential: A sequential container of a Rearrange layer for downsampling and a Conv2d layer for channel adjustment.
-    '''
+        nn.Sequential: A sequential container of a Rearrange layer for downsampling and a Conv2d layer for channel adjustment.
+    """
     return nn.Sequential(
         # Rearrange input tensor to downsample spatial dimensions and increase channel dimensions,
         Rearrange("b c (h p1) (w p2) -> b (c p1 p2) h w", p1=2, p2=2), 
@@ -83,6 +89,7 @@ def Downsample(dim, dim_out=None):
         # Convolution Layer to adjust the channel count to the desired output dimension.
         nn.Conv2d(dim * 4, default(dim_out, dim), 1)  # Convolutional layer to optionally adjust channel dimensions
     )
+#
 
 class WeightStandardizedConv2d(nn.Conv2d):
     """

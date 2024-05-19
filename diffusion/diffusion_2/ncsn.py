@@ -1,7 +1,8 @@
-'''
-Noise Conditional Score Based Algorithms
+"""
+Score Based Generative Modelling using
+Noise Conditional Score Based Models
 https://github.com/ermongroup/ncsn/ 
-'''
+"""
 
 # Imports
 import torch
@@ -12,15 +13,16 @@ import numpy as np
 # Functions
 def anneal_dsm_score_estimation(scorenet, samples, labels, sigmas, anneal_power=2.):
     '''
-    Function: 
-    Loss Function using Denoising Score Matching Objective
+    Denoising Score Matching Objective ()
     
     Args:
-    scorenet            Neural Network Estimating the Score Function
-    samples             Input Samples 
-    labels
-    sigmas
-    anneal_power        Hyperparameter controlling the annealing of the weighting in the loss function.
+        scorenet            Neural Network Estimating the Score Function
+        samples             Input Samples [N, C, H, W]
+        labels              Noise Levels
+        sigmas              Sigma Schedule adjusting the added Noise Level
+        anneal_power        Hyperparameter controlling the annealing of the weighting in the loss function.
+    Return
+        loss
     '''
     used_sigmas = sigmas[labels].view(samples.shape[0], *([1] * len(samples.shape[1:])))
     
@@ -42,23 +44,25 @@ def anneal_dsm_score_estimation(scorenet, samples, labels, sigmas, anneal_power=
     return loss.mean(dim=0)
 
 def anneal_Langevin_dynamics(x_mod, scorenet, sigmas, n_steps_each=100, step_lr=0.00002):
-    '''
-    Function: 
-    Sampling using Annelead Langevin Dynamics
+    """
+    Sampling using Annelead Langevin Dynamics 
     
     Args:
-    x_mod (torch.Tensor)        Random Torch Tensor of [b, c, h, w]
-                                torch.rand(batches, channels, height, width, device=config.device)
+        x_mod (torch.Tensor)            Random Torch Tensor of [N, C, H, W]
+                                        torch.rand(batches, channels, height, width, device=config.device)
+        
+        scorenet                        Noise Conditional Score Based Model 
+        
+        sigmas (numpy.ndarray)          Sigmas Schedule adjusting the added Noise Level 
+                                        np.exp(np.linspace(np.log(sigma_begin), np.log(sigma_end), num_classes))
+        
+        n_steps_each (int, 100)
+        
+        step_lr (float)                 Learing Rate per Step
     
-    scorenet                    Noise Conditional Score Based Model
+    Returns:
     
-    sigmas (numpy.ndarray)      Sigmas Schedule adjusting the added Noise Level 
-                                np.exp(np.linspace(np.log(sigma_begin), np.log(sigma_end), num_classes))
-    
-    n_steps_each (int)
-    
-    step_lr (float)             Learing Rate per Step
-    '''
+    """
     # Initialize an empty list to store images generated at each step
     images = []
 
