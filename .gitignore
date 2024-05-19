@@ -1,4 +1,5 @@
 .DS_Store
 datasets/img_align_celeba/
 datasets/mnist/
+datasets/raw/
 results
